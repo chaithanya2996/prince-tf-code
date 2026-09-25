@@ -18,7 +18,7 @@
 # }
 
 resource "aws_instance" "myinstance" {
-count = 5
+count = 3
 ami = "ami-066c4849e6b3a1e3d"
-instance_type = "t2.micro"
+instance_type = "t3.micro"
 }
