@@ -1,8 +1,6 @@
-# Configure the AWS Provider
 provider "aws" {
   region = "ap-south-1"
 }
-
 
 resource "aws_instance" "myinstance" {
   count         = var.instance_count
@@ -13,4 +11,3 @@ resource "aws_instance" "myinstance" {
   }
 
 }
-
