@@ -289,3 +289,578 @@ terraform state list
 
 terraform destroy --auto-approve
 
+VARIABLES
+=============
+In Terraform, variables are used to make configurations more dynamic and reusable
+
+Terraform variables are a core feature that allows you to parameterize your Terraform configurations.
+
+Its a block in terraform used to define the variables
+
+By using variables, you can make your code more flexible, reusable, and easier to manage.
+
+Variables enable you to customize your Terraform deployments without hardcoding values directly into your configuration files.
+
+Types of Terraform Variables
+****************************
+
+Input Variables: These allow you to pass values into Terraform configurations. They are defined using the variable block.
+---------------
+
+Output Variables: These are used to return values from your Terraform configurations after they have been applied, often used for 
+----------------  sharing data between different configurations or modules.
+
+Local Variables: These are used to assign values to an expression or value within a configuration for reuse, improving readability and 
+---------------- maintainability.
+
+
+Variable Types
+--------------
+Terraform supports several types of variables:
+
+string:  A sequence of characters ("hello", "world")
+------
+
+number:  Any numeric value (10, 3.14, -5)
+------
+
+bool:    A boolean value (true or false).
+-----
+
+list(type):  An ordered list of elements (["a", "b", "c"])
+----------
+
+map(type):  A key-value pair mapping ({ key1 = "value1", key2 = "value2" })
+---------
+
+set(type):  A unique unordered collection of elements (["a", "b", "c"])
+---------
+
+object({...}): A structured object with named attributes
+-------------
+
+tuple([types]): A fixed sequence of elements with different types
+--------------
+
+List Examples:
+-----------
+
+length(list): Returns the number of elements in a list.
+-------------------------------------------------------
+
+
+variable "fruits" {
+  type    = list(string)
+  default = ["apple", "banana", "cherry"]
+}
+
+output "list_length" {
+  value = length(var.fruits) 
+}
+
+
+concat(list1, list2, ...): Combines multiple lists into a single list.
+---------------------------------------------------------------------
+
+variable "fruits" {
+  type    = list
+  default = ["apple", "grapes"]
+}
+
+variable "vegies" {
+  type    = list
+  default = ["onions", "tomatoes"]
+}
+
+output "combined_list" {
+  value = concat(var.fruits, var.vegies)
+}
+
+element(list, index): Returns the element at the specified index in a list.
+----------------------------------------------------------------------------
+
+variable "fruits" {
+  type    = list
+  default = ["apple", "banana", "cherry"]
+}
+
+output "selected_element" {
+  value = element(var.fruits, 1) 
+}
+
+
+
+zipmap(key, value): Creates a map from a list of keys and a list of values.
+-----------------------------------------------------------------------
+
+variable "keys" {
+  type    = list(string)
+  default = ["name", "age"]
+}
+
+variable "values" {
+  type    = list(any)
+  default = ["Alice", 30]
+}
+
+output "my_map" {
+  value = zipmap(var.keys, var.values)
+}
+
+
+lookup(map, key): Retrieves the value associated with a specific key in a map.
+-----------------------------------------------------------------------------
+variable "my_map" {
+  type    = map(string)
+  default = {"name" = "Venky", "age" = "50"}
+}
+
+output "value" {
+  value = lookup(var.my_map, "name") 
+}
+
+
+join(separator, list): Joins the elements of a list into a single string using the specified separator.
+------------------------------------------------------------------------------------------------------
+
+variable "fruits" {
+  type    = list
+  default = ["apple", "banana", "cherry"]
+}
+
+output "joined_string" {
+  value = join(", ", var.fruits) 
+}
+
+
+When order matters or duplicates are allowed
+
+set Example : TO print unique values
+-----------
+
+variable "unique_names" {
+  type    = set(string)
+  default = ["Alice", "Bob", "Charlie", "Bob"]
+}
+output "unique_names_list" {
+  value = tolist(var.unique_names)
+}
+
+
+When uniqueness is required, and order doesn't matter
+
+
+
+MAP Example : key value
+------------
+
+variable "instance_tags" {
+  type = map(string)
+  default = {
+    Name = "WebServer"
+    Env  = "Production"
+  }
+}
+
+# Output the entire map
+output "instance_tags_output" {
+  description = "Displays the instance tags as a map"
+  value       = var.instance_tags
+}
+
+# Output a specific tag value (e.g., "Name")
+output "instance_name" {
+  description = "Displays the 'Name' tag from the instance tags"
+  value       = var.instance_tags["Name"]
+}
+
+# Output all tag keys separately
+output "tag_keys" {
+  description = "Displays only the keys from the instance tags"
+  value       = keys(var.instance_tags)
+}
+
+# Output all tag values separately
+output "tag_values" {
+  description = "Displays only the values from the instance tags"
+  value       = values(var.instance_tags)
+}
+
+
+Tuple Example
+-------------
+
+tuple allows elements of different types in a fixed order. 
+
+
+variable "mixed_values" {
+  type = tuple([string, number, bool])
+  default = ["example", 42, true]
+}
+
+# Output the entire tuple
+output "mixed_values_output" {
+  description = "Displays the full tuple"
+  value       = var.mixed_values
+}
+
+# Output individual elements from the tuple
+output "first_element" {
+  description = "First element (string)"
+  value       = var.mixed_values[0]
+}
+
+output "second_element" {
+  description = "Second element (number)"
+  value       = var.mixed_values[1]
+}
+
+output "third_element" {
+  description = "Third element (boolean)"
+  value       = var.mixed_values[2]
+}
+
+
+
+
+
+Examples
+========
+
+Here in below code, we have 3 varibales: instance_count , instance_ami and instance_type , these we can put any name var.anyname
+description = "*" and type = number are optional, use or dont use its same. count, ami and instance_type are predefined by Terraform cannot change.
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+variable "instance_count" {
+  description = "*"
+  type        = number
+  default     = 3
+}
+
+variable "instance_ami" {
+
+  description = "*"
+  type        = string
+  default     = "ami-0492447090ced6eb5"
+}
+
+variable "instance_type" {
+
+  description = "*"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "instance_name" {
+
+  description = "*"
+  type        = string
+  default     = "TF-Server"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = var.instance_count
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+  	tags = {
+    Name = var.instance_name
+  }
+
+}
+
+-- terraform fmt
+-- terraform plan 
+-- terraform apply --auto-approve
+
+But its difficult to mange variables in single main.tf so now keep them in different configuration file called variables.tf
+we no need to call varibles.tf in  main.tf, TF will automatically call the variable.tf file
+
+Note: To delete multiple lines in vi, use ndd Ex:17dd : 17 lines will be deleted
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = var.instance_count
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+  tags = {
+    Name = var.instance_name
+  }
+
+}
+
+
+vi variables.tf
+
+
+variable "instance_count" {
+  description = "*"
+  type        = number
+  default     = 1
+}
+
+variable "instance_ami" {
+
+  description = "*"
+  type        = string
+  default     = "ami-0492447090ced6eb5"
+}
+
+variable "instance_type" {
+
+  description = "*"
+  type        = string
+  default     = "t2.micro"
+}
+variable "instance_name" {
+
+  description = "*"
+  type        = string
+  default     = "TF-Server"
+}
+
+
+-- terraform apply --auto-approve
+-- terraform state list
+-- terraform destroy --auto-approve
+
+==============================
+Variables Files .tfvar
+============================
+
+TERRAFORM TFVARS:
+----------------
+
+This file allows you to separate variable definitions from the main configuration, making it easier to manage different environments and keep your codebase clean and organized.
+
+we use tfvar files when we have multiple configurations like (prod, dev and test)
+
+Each configuration we can write on variable file and attach it while running.
+
+terraform.tfvars the default name for a .tfvars file
+
+You can also create custom-named .tfvars files like dev.tfvars, test.tfvars, prod.tfvars
+
+Example
+-------
+
+No change in main.tf
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = var.instance_count
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+  tags = {
+    Name = var.instance_name
+  }
+
+}
+
+** In variables.tf , remove all hardcoded values(default values) and keep it in separate tfvars file
+
+vi variables.tf
+
+variable "instance_count" {
+  description = "*"
+  type        = number
+}
+
+variable "instance_ami" {
+
+  description = "*"
+  type        = string
+}
+
+variable "instance_type" {
+
+  description = "*"
+  type        = string
+}
+variable "instance_name" {
+
+  description = "*"
+  type        = string
+}
+
+** Now create 3 different tfvars files like dev.tfvars, test.tfvars and prod.tfvars
+
+vi dev.tfvars vi test.tfvars and vi prod.tfvars with different instance_name
+
+vi dev.tfvars
+
+instance_count = 1
+
+instance_ami = "ami-0492447090ced6eb5"
+
+instance_type = "t2.micro"
+
+instance_name = "Dev-Server"
+
+---------------
+
+vi prod.tfvars
+
+instance_count = 1
+
+instance_ami = "ami-0492447090ced6eb5"
+
+instance_type = "t2.micro"
+
+instance_name = "Prod-Server"
+
+
+-- terraform apply --auto-approve  -var-file="dev.tfvars"
+
+-- terraform apply --auto-approve  -var-file="test.tfvars"   
+   [ **This command now just rename Dev-Server to Test-Server as we are applying on same workspace(default), What is WorkSpace? will see ** ]
+   [terraform workspace list] [we can create a separate workspace for all diff env]
+
+-- terraform destroy --auto-approve  -var-file="test.tfvars"
+
+-- terraform apply --auto-approve  -var-file="prod.tfvars"
+
+-- terraform destroy --auto-approve  -var-file="prod.tfvars"
+
+===========================================================================================
+Another type Variable Usage : Command Line Flags: Terraform Command Line and Input Variable
+===========================================================================================
+
+If you don't provide any values on configurations file, TF will ask for values on Command Line or provide inputs to Command Line
+
+For Example: Remove all dev.tfvars, prod.tfvars and test.tfvars
+
+First cat Variables.tf - No values defined there in variables.tf
+
+Command Line Flags: Terraform Command Line
+------------------------------------------
+
+-- terraform apply --auto-approve  **   [it will ask the values on Command Line]
+
+-- terraform destroy --auto-approve  **   [it will ask the values on Command Line]
+
+Input Variable
+--------------
+
+-- terraform apply --auto-approve -var="instance_type=t2.micro" -var="instance_count=1" -var="instance_name=test-server" -var="instance_ami=ami-0492447090ced6eb5"
+
+-- terraform destroy --auto-approve -var="instance_type=t2.micro" -var="instance_count=1" -var="instance_name=test-server" -var="instance_ami=ami-0492447090ced6eb5"
+
+-- In above destroy command, remove one variable and destroy, TF will ask in Command Line but if you don't give also, it will take from statefile and destroy
+
+==============================================================
+Environment Variables using EXPORT- we don't use much in real time
+================================================================
+
+To make it easy and understandable, lets remove all variables except ami in variables.tf(see variable name should be ami not instance_ami), otherwise need to export all variables
+
+export TF_VAR_ami=ami-0492447090ced6eb5
+
+vi variables.tf
+
+variable "ami" {
+
+  description = "*"
+  type        = string
+}
+
+
+** In the main.tf, keep again the hardcoded values for easy purpose to see only AMI from Environment Variable
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = 1
+  ami           = var.ami
+  instance_type = "t2.micro"
+  tags = {
+    Name = "reya-server"
+  }
+
+}
+
+-- terraform apply --auto-approve 
+-- terraform destroy --auto-approve
+
+===========================
+TERRAFORM OUTPUT VARIABLE
+===========================
+
+These are used to return values from your Terraform configurations after they have been applied, often used for sharing data between different configurations or modules.
+
+First remove variables.tf , just to make it simple 
+
+This block is used to print the resource outputs. In the output section value = aws_instance.myinstance.public_ip , aws_instance and myinstance is a label for resource 
+
+Example
+-------
+
+vi main.tf	
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "outputvarexample-server"
+  }
+}
+
+output "instance-information" {
+  value = [aws_instance.myinstance.public_ip, aws_instance.myinstance.private_ip, aws_instance.myinstance.public_dns]
+
+}
+
+-- terraform apply --auto-approve 
+   [** see the output of the above command on command line]
+
+*** If you need all information about the EC2 instance in output  - value = aws_instance.myinstance
+---------------------------------------------------------------------------------------------------
+
+vi main.tf	
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "outputvarexample-server"
+  }
+}
+
+output "instance-information" {
+  value = aws_instance.myinstance
+
+}
+
+-- terraform apply --auto-approve 
+   [** see the output of the above command on command line]
+
+-- terraform destroy --auto-approve
+
+
+
