@@ -864,3 +864,401 @@ output "instance-information" {
 
 
 
+
+
+=========================================================
+Another Examples of Using Variables  - Creating S3 Bucket
+=========================================================
+
+Create a S3 bucket from TF using complete variable structure 
+
+├── main.tf
+├── provider.tf
+├── terraform.tfvars
+├── variables.tf
+
+
+Lets create main.tf (main code, calling values from variables.tf), provider.tf (providers information), terraform.tfvars(values) and 
+variables.tf (calling values from tfvars)
+
+touch main.tf provider.tf terraform.tfvars variables.tf
+
+vi terraform.tfvars
+
+mybucket = "tf-example-madhan-s3-bkt"
+
+--------------------------
+
+vi provider.tf
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "5.63.1"
+    }
+  }
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+---------------------------
+
+vi variables.tf
+
+variable "mybucket" {
+  type        = string
+  description = "This is my DevOps test bucket from TF"
+  default     = ""
+
+}
+
+---------------------------
+
+vi main.tf
+
+resource "aws_s3_bucket" "example" {
+  bucket = var.mybucket
+
+}
+
+-- terraform apply --auto-approve 
+-- terraform destroy --auto-approve
+
+
+
+
+
+
+
+
+
+
+
+===========================================
+Another Examples of Using Variables : Launching EC2 instance
+===========================================
+Launching EC2 instance from TF using complete variable structure
+
+.
+├── main.tf
+├── output.tf
+├── provider.tf
+├── terraform.tfvars
+└── variables.tf
+
+
+---------------------------------
+
+vi terraform.tfvars
+
+ instance_ami = "ami-0492447090ced6eb5"
+ instance_type ="t2.micro"
+ key_name = "MyKey"
+ name = "MyInstance"
+
+
+-----------------------------------
+
+
+vi variables.tf
+
+variable "instance_ami" {
+    type = string
+    default = ""
+  
+}
+variable "instance_type" {
+    type = string
+    default = ""
+  
+}
+variable "key_name" {
+    type = string
+    default = ""
+  
+}
+variable "name" {
+  description = "The name of the EC2 instance."
+  default = ""
+}
+
+-----------------------------------------------------
+
+vi provider.tf
+
+provider "aws" {
+region = "ap-south-1"
+}
+
+
+----------------------------------------------------
+
+vi main.tf
+
+resource "aws_instance" "myinstance" {
+    ami = var.instance_ami
+    instance_type = var.instance_type
+    key_name = var.key_name
+    tags = {
+      Name = var.name
+    }
+}
+
+
+------------------------------------------------------
+
+vi output.tf
+
+output "instance_public_ip" {
+    value = aws_instance.myinstance.public_ip
+    sensitive = true
+}
+
+output "instance_id"{
+    value = aws_instance.myinstance.id
+}
+output "instance_public_dns" {
+    value = aws_instance.myinstance.public_dns
+  
+}
+output "instance_arn" {
+    value = aws_instance.myinstance.arn
+  
+}
+
+
+-- terraform apply --auto-approve 
+   [** see the output of the above command on command line]
+
+-- terraform destroy --auto-approve
+
+
+***************************************************************************************************************************
+5th June
+***************************************************************************************************************************
+
+=================================================
+TAINT: it is used to recreate specific resources in infrastructure.
+================================================
+
+Terraform taint command is used to manually mark a specific resource for recreation.
+When you mark a resource as "tainted," it indicates to Terraform that the resource is in a bad or inconsistent state and should be destroyed and recreated during the next terraform apply operation.
+
+When to Use : Failed Deployments, Manual Changes and Resource Corruption
+
+Example:
+------
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "taint-server-example"
+  }
+}
+
+resource "aws_s3_bucket" "mys3bucket" {
+  bucket = "test-bkt-dkkfg-reya"
+}
+
+-- terraform apply --auto-approve
+-- terraform state list   [This will show you the resources handles by statefile]
+
+-- terraform taint aws_s3_bucket.mys3bucket
+
+-- terraform apply --auto-approve    [This will now delete only S3 bucket and recreate but not EC2 as S3 bucket has marked as tainted]
+
+Tainted Another Example
+----------------------
+
+-- terraform state list
+-- terraform taint aws_instance.myinstance
+-- terraform apply --auto-approve    [This will terminate the EC2 instance only and re-launch it as it is marked as tainted]
+
+
+TO UNTAINT: terraform untaint aws_instance.myinstance
+
+TERRAFORM REPLACE: can also use Replace
+terraform apply --auto-approve  -replace="aws_instance.myinstance[0]"
+
+
+=================
+TERRAFORM LOCALS:
+=================
+
+In Terraform, locals are used to define and assign values to variables that are meant to be used within a module or a configuration block.
+
+Unlike input variables, which allow values to be passed in from the outside, local values are set within the configuration itself and are used to simplify complex expressions, avoid repetition, and improve the readability of your Terraform code.
+
+Example: Using Local Values:
+--------
+vi  main.tf
+
+locals {
+  project_name   = "My-Awesome-DevOps"
+  environment    = "Students"
+  instance_count = 2
+  tags = {
+    Name        = "${local.project_name}-${local.environment}"
+    Environment = local.environment
+  }
+}
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  count         = local.instance_count
+  tags          = local.tags
+}
+
+output "instance_ids" {
+  description = "List of EC2 instance IDs"
+  value       = aws_instance.myinstance[*].id
+}
+
+Example 2: Setup VPC, Subnet and EC2
+---------
+
+*** In the below example, it will create a VPC with name Prod-VPC, Subnet with Prod-Subnet, EC2 instance with Prod-EC2. Instead having Prod in every block, lets put it as a variable
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_vpc" "myvpc" {
+  cidr_block = "192.168.0.0/16"
+  tags = {
+    Name = "Prod-VPC"
+  }
+}
+
+resource "aws_subnet" "subnet1" {
+  vpc_id            = aws_vpc.myvpc.id
+  cidr_block        = "192.168.1.0/24"
+  availability_zone = "ap-south-1a"
+  tags = {
+    Name = "Prod-Subnet"
+  }
+}
+
+resource "aws_instance" "myinstance" {
+  subnet_id     = aws_subnet.subnet1.id
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "Prod-Server"
+  }
+}
+
+
+-- terraform apply --auto-approve
+-- terraform destroy --auto-approve
+
+
+Instead using PROD in every block lets make it as a local variable
+-----------------------------
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+locals {
+env = "Prod"
+}
+
+resource "aws_vpc" "myvpc" {
+  cidr_block = "192.168.0.0/16"
+  tags = {
+    Name = "${local.env}-VPC"
+  }
+}
+
+resource "aws_subnet" "subnet1" {
+  vpc_id            = aws_vpc.myvpc.id
+  cidr_block        = "192.168.1.0/24"
+  availability_zone = "ap-south-1a"
+  tags = {
+    Name = "${local.env}-Subnet"
+  }
+}
+
+resource "aws_instance" "myinstance" {
+  subnet_id     = aws_subnet.subnet1.id
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "${local.env}-Server"
+  }
+}
+
+-- terraform apply --auto-approve
+
+If you want change that to dev or test and apply
+
+-- terraform destroy --auto-approve
+
+*************************************************************************************************************************
+6th June
+*************************************************************************************************************************
+=======================
+TERRAFORM WORKSPACE:
+======================
+
+
+In Terraform, a workspace is an isolated environment where a separate state file is maintained.
+
+This feature allows you to manage different environments (like development, staging, production) within the same Terraform configuration.
+
+Each workspace has its own state, enabling you to deploy the same infrastructure to multiple environments without needing to duplicate the configuration files.
+
+Key Concepts of Terraform Workspaces:
+-------------------------------------
+
+Isolation: Each workspace has its own state file. This means the resources managed by Terraform in one workspace are isolated from
+---------  those in another workspace.
+
+Use Cases: Workspaces are typically used for managing multiple environments (e.g., dev, staging, prod) within a single Terraform
+---------- configuration.
+
+Default Workspace: When you first initialize a Terraform directory, it starts with a default workspace named default. You can switch to
+-----------------  other workspaces or create new ones as needed.
+
+Setting up environments using workspaces
+Switching between environments
+Using different configurations in each environment
+Using different backends in each environment
+
+NOTE:
+-----
+WE CANT DELETE CURRENT WORKSPACE.
+BEFORE DELETING WORKSPACE WE NEED TO DELETE RESOURCES ON IT.
+WE CANT DELETE DEFAULT WORKSPACE
+
+All workspace statefiles are under directory terraform.tfstate.d
+
+terraform workspace list    : to show list of workspace
+terraform workspace new     : to Create and switch to workspace "dev"
+terraform workspace show    : to show current workspace
+terraform workspace select     : to switch blw workspaces
+terraform workspace delete     : to delete the workspaces
+
+Examples
+--------
+
+-- terraform workspace list  [It give workspace name as "default"]
+
+-- terraform workspace new dev  [This will create a new Workspace called dev]
+
+-- terraform workspace select dev
