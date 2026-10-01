@@ -1262,3 +1262,294 @@ Examples
 -- terraform workspace new dev  [This will create a new Workspace called dev]
 
 -- terraform workspace select dev
+=================================================
+=======================
+TERRAFORM WORKSPACE:
+======================
+
+
+In Terraform, a workspace is an isolated environment where a separate state file is maintained.
+
+This feature allows you to manage different environments (like development, staging, production) within the same Terraform configuration.
+
+Each workspace has its own state, enabling you to deploy the same infrastructure to multiple environments without needing to duplicate the configuration files.
+
+Key Concepts of Terraform Workspaces:
+-------------------------------------
+
+Isolation: Each workspace has its own state file. This means the resources managed by Terraform in one workspace are isolated from
+---------  those in another workspace.
+
+Use Cases: Workspaces are typically used for managing multiple environments (e.g., dev, staging, prod) within a single Terraform
+---------- configuration.
+
+Default Workspace: When you first initialize a Terraform directory, it starts with a default workspace named default. You can switch to
+-----------------  other workspaces or create new ones as needed.
+
+Setting up environments using workspaces
+Switching between environments
+Using different configurations in each environment
+Using different backends in each environment
+
+NOTE:
+-----
+WE CANT DELETE CURRENT WORKSPACE.
+BEFORE DELETING WORKSPACE WE NEED TO DELETE RESOURCES ON IT.
+WE CANT DELETE DEFAULT WORKSPACE
+
+All workspace statefiles are under directory terraform.tfstate.d
+
+terraform workspace list    : to show list of workspace
+terraform workspace new     : to Create and switch to workspace "dev"
+terraform workspace show    : to show current workspace
+terraform workspace select     : to switch blw workspaces
+terraform workspace delete     : to delete the workspaces
+
+Examples
+--------
+
+-- terraform workspace list  [It give workspace name as "default"]
+
+-- terraform workspace new dev  [This will create a new Workspace called dev]
+
+-- terraform workspace select dev
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+locals {
+  instance_types = {
+    dev   = "t2.micro"
+    test  = "t2.small"
+    prod  = "t2.medium"
+  }
+}
+resource "aws_instance" "workspace-example" {
+  ami           = "ami-08ee1453725d19cdb"
+  instance_type = local.instance_types[terraform.workspace]
+  tags = {
+    Name = "${terraform.workspace}-server"
+  }
+}
+
+output "active_workspace" {
+  description = "Current Terraform workspace"
+  value       = terraform.workspace
+}
+
+output "selected_instance_type" {
+  description = "Instance type selected for the current workspace"
+  value       = local.instance_types[terraform.workspace]
+}
+
+
+-- terraform plan  [you should see t2.micro getting launched]
+
+-- terraform workspace new test  [This will create a new Workspace called test]
+
+-- terraform plan  [you should see t2.small getting launched]
+
+-- terraform workspace new prod  [This will create a new Workspace called prod]
+
+-- terraform plan  [you should see t2.medium getting launched]
+
+-- terraform workspace select dev
+
+-- terraform apply --auto-approve
+
+-- terraform workspace select test
+
+-- terraform apply --auto-approve
+
+-- cd terraform.tfstate.d
+
+-- ls
+
+-- come back to main directory
+
+-- terraform workspace list
+
+-- terraform workspace delete test   [Workspace "test" is your active workspace, You cannot delete the currently active workspace. Please switch
+                                      to another workspace and try again.]
+-- terraform workspace select dev
+
+-- terraform workspace delete test   [Error: Workspace is not empty, first delete the resources in workspace and then delete workspace]
+
+-- terraform workspace select test   [Again go back to test workspace, destory the infra]
+
+-- terraform destroy --auto-approve
+
+-- terraform workspace dev  [Switch to another workspace to delete the test workspace]
+
+-- terraform workspace delete test
+
+-- terraform workspace select dev
+
+-- terraform destroy --auto-approve
+
+-- terraform workspace select default
+
+-- terraform workspace delete dev
+
+-- terraform workspace list
+
+Another WorkSpace Example
+==========================
+
+create dev, test and prod workspaces and terraform apply and destroy the workspace, switch to another workspace and delete the workspaces
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+locals {
+  env = terraform.workspace
+}
+
+resource "aws_vpc" "one" {
+  cidr_block = "192.168.0.0/16"
+  tags = {
+    Name = "${local.env}-vpc"
+  }
+}
+
+resource "aws_subnet" "two" {
+  vpc_id            = aws_vpc.one.id
+  cidr_block        = "192.168.1.0/24"
+  availability_zone = "ap-south-1a"
+  tags = {
+    Name = "${local.env}-subnet"
+  }
+}
+
+resource "aws_instance" "three" {
+  subnet_id     = aws_subnet.two.id
+  ami           = "ami-0cb441cf7bb9cba22"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "${local.env}-server"
+  }
+}
+
+
+Note: We cannot delete the default workspace
+
+=================================================
+Another Variable concept: Dynamic Local Variable
+================================================
+
+-- terraform workspace list   [keep default]
+
+
+Dynamically assigns the EC2 instance type based on the workspace
+
+vi main.tf
+
+resource "aws_instance" "dynamiclocalvarinstance" {
+
+  ami           = "ami-08ee1453725d19cdb"
+  instance_type = terraform.workspace == "prod" ? "m4.large" : "t2.small"
+  tags = {
+    Name = "Dynamic-local-var-example-server-${terraform.workspace}"
+  }
+}
+
+output "active_workspace" {
+  description = "Current Terraform workspace"
+  value       = terraform.workspace
+}    
+
+output "selected_instance_type" {
+  description = "Instance type selected for the current workspace"
+  value       = aws_instance.dynamiclocalvarinstance.instance_type
+}
+
+-- terraform apply --auto-approve  
+
+[Explanation: The above code has a variable terraform.workspace which is taking the value dynamicly from which workspace we are using, in this         case we are using default workspace, that default workspace will be passed to instace_type = default, if prod m4.large will launch, if not t2.small]
+
+-- terraform destroy --auto-approve
+
+**************************************************************************************************************************
+8th June
+**************************************************************************************************************************
+
+=======================
+TERRAFORM BACKEND SETUP:
+=======================
+
+Remote State:
+--------------
+
+“By default, Terraform stores state locally in a file named terraform.tfstate. When working with Terraform in a team, use of a local file makes Terraform usage complicated because each user must make sure they always have the latest state data before running Terraform and make sure that nobody else runs Terraform at the same time.”
+
+“With remote state, Terraform writes the state data to a remote data store(S3), which can then be shared between all members of a team.”
+
+Generally we have the statefile in local, if you lost the machine, statefile is also lost. So that reason we keep statefile in S3
+And also, all DevOps Engineers can share the statefile if required.
+
+
+First, Create a S3 Private bucket with Versioning
+
+vi main.tf
+
+provider "aws" {
+  region = "ap-south-1"
+}
+
+terraform {
+  backend "s3" {
+    bucket = "terraform-statefile-madhan-1"
+    key    = "prod/terraform.tfstate"
+    region = "ap-south-1"
+  }
+}
+resource "aws_instance" "myfirstinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "backend-example1"
+  }
+}
+
+resource "aws_instance" "mysecondinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+  tags = {
+    Name = "backend-example2"
+  }
+}
+
+output "instance_ids" {
+  description = "List of EC2 instance IDs"
+  value       = [aws_instance.myfirstinstance.id, aws_instance.mysecondinstance.id]
+}
+
+output "instance_names" {
+  description = "List of EC2 instance names"
+  value       = [aws_instance.myfirstinstance.tags.Name, aws_instance.mysecondinstance.tags.Name]
+}
+
+
+-- terraform init
+
+-- terraform apply --auto-approve
+
+Note: Now see the terraform.tfstate in S3 bucket
+
+General Note: If you modify myfirstinstance or mysecondinstance, it will destroy the existing server and create a new one , but if you want to modify tag, just change the tag to something else and terraform apply, server will not destroy only tag will change.
+
+-- terraform state list
+
+-- terraform destroy --auto-approve -target="aws_instance.myfirstinstance"    [This will destroy only one instance and update in S3 statefile]
+
+-- cat terraform.tfstate [Currently no resources are there]
+
+-- cat terraform.tfstate.backup [This is the backup of the previous state]
+
+
